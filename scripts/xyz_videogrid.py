@@ -2,13 +2,17 @@ from collections import namedtuple
 from copy import copy
 from itertools import permutations, chain
 import random
+import math
+from datetime import datetime
 import csv
 import os.path
 from io import StringIO
 from PIL import Image
 import numpy as np
+from moviepy.editor import VideoFileClip, clips_array, TextClip
 
 import modules.scripts as scripts
+from scripts import xyz_grid
 import gradio as gr
 
 from modules import images, sd_samplers, processing, sd_models, sd_vae, sd_samplers_kdiffusion, errors
@@ -227,52 +231,94 @@ class AxisOptionTxt2Img(AxisOption):
         self.is_img2img = False
 
 
-axis_options = [
-    AxisOption("Nothing", str, do_nothing, format_value=format_nothing),
-    AxisOption("Seed", int, apply_field("seed")),
-    AxisOption("Var. seed", int, apply_field("subseed")),
-    AxisOption("Var. strength", float, apply_field("subseed_strength")),
-    AxisOption("Steps", int, apply_field("steps")),
-    AxisOptionTxt2Img("Hires steps", int, apply_field("hr_second_pass_steps")),
-    AxisOption("CFG Scale", float, apply_field("cfg_scale")),
-    AxisOptionImg2Img("Image CFG Scale", float, apply_field("image_cfg_scale")),
-    AxisOption("Prompt S/R", str, apply_prompt, format_value=format_value),
-    AxisOption("Prompt order", str_permutations, apply_order, format_value=format_value_join_list),
-    AxisOptionTxt2Img("Sampler", str, apply_field("sampler_name"), format_value=format_value, confirm=confirm_samplers, choices=lambda: [x.name for x in sd_samplers.samplers if x.name not in opts.hide_samplers]),
-    AxisOptionTxt2Img("Hires sampler", str, apply_field("hr_sampler_name"), confirm=confirm_samplers, choices=lambda: [x.name for x in sd_samplers.samplers_for_img2img if x.name not in opts.hide_samplers]),
-    AxisOptionImg2Img("Sampler", str, apply_field("sampler_name"), format_value=format_value, confirm=confirm_samplers, choices=lambda: [x.name for x in sd_samplers.samplers_for_img2img if x.name not in opts.hide_samplers]),
-    AxisOption("Checkpoint name", str, apply_checkpoint, format_value=format_remove_path, confirm=confirm_checkpoints, cost=1.0, choices=lambda: sorted(sd_models.checkpoints_list, key=str.casefold)),
-    AxisOption("Negative Guidance minimum sigma", float, apply_field("s_min_uncond")),
-    AxisOption("Sigma Churn", float, apply_field("s_churn")),
-    AxisOption("Sigma min", float, apply_field("s_tmin")),
-    AxisOption("Sigma max", float, apply_field("s_tmax")),
-    AxisOption("Sigma noise", float, apply_field("s_noise")),
-    AxisOption("Schedule type", str, apply_override("k_sched_type"), choices=lambda: list(sd_samplers_kdiffusion.k_diffusion_scheduler)),
-    AxisOption("Schedule min sigma", float, apply_override("sigma_min")),
-    AxisOption("Schedule max sigma", float, apply_override("sigma_max")),
-    AxisOption("Schedule rho", float, apply_override("rho")),
-    AxisOption("Eta", float, apply_field("eta")),
-    AxisOption("Clip skip", int, apply_clip_skip),
-    AxisOption("Denoising", float, apply_field("denoising_strength")),
-    AxisOption("Initial noise multiplier", float, apply_field("initial_noise_multiplier")),
-    AxisOption("Extra noise", float, apply_override("img2img_extra_noise")),
-    AxisOptionTxt2Img("Hires upscaler", str, apply_field("hr_upscaler"), choices=lambda: [*shared.latent_upscale_modes, *[x.name for x in shared.sd_upscalers]]),
-    AxisOptionImg2Img("Cond. Image Mask Weight", float, apply_field("inpainting_mask_weight")),
-    AxisOption("VAE", str, apply_vae, cost=0.7, choices=lambda: ['None'] + list(sd_vae.vae_dict)),
-    AxisOption("Styles", str, apply_styles, choices=lambda: list(shared.prompt_styles.styles)),
-    AxisOption("UniPC Order", int, apply_uni_pc_order, cost=0.5),
-    AxisOption("Face restore", str, apply_face_restore, format_value=format_value),
-    AxisOption("Token merging ratio", float, apply_override('token_merging_ratio')),
-    AxisOption("Token merging ratio high-res", float, apply_override('token_merging_ratio_hr')),
-    AxisOption("Always discard next-to-last sigma", str, apply_override('always_discard_next_to_last_sigma', boolean=True), choices=boolean_choice(reverse=True)),
-    AxisOption("SGM noise multiplier", str, apply_override('sgm_noise_multiplier', boolean=True), choices=boolean_choice(reverse=True)),
-    AxisOption("Refiner checkpoint", str, apply_field('refiner_checkpoint'), format_value=format_remove_path, confirm=confirm_checkpoints_or_none, cost=1.0, choices=lambda: ['None'] + sorted(sd_models.checkpoints_list, key=str.casefold)),
-    AxisOption("Refiner switch at", float, apply_field('refiner_switch_at')),
-    AxisOption("RNG source", str, apply_override("randn_source"), choices=lambda: ["GPU", "CPU", "NV"]),
-]
+def xy_dimensions(imgs, batch_size=1, rows=None):
+    """Returns the dimensions (R, C) of an XY grid based on number of images and optional batch_size and rows."""
+    if rows is None:
+        if opts.n_rows > 0:
+            rows = opts.n_rows
+        elif opts.n_rows == 0:
+            rows = batch_size
+        elif opts.grid_prevent_empty_spots:
+            rows = math.floor(math.sqrt(len(imgs)))
+            while len(imgs) % rows != 0:
+                rows -= 1
+        else:
+            rows = math.sqrt(len(imgs))
+            rows = round(rows)
+    if rows > len(imgs):
+        rows = len(imgs)
 
+    cols = math.ceil(len(imgs) / rows)
+    return (rows, cols)
+
+def video_grid(p, imgs, batch_size=1, rows=None):
+    """
+    Creates a grid of video clips from a list of image paths and saves it as a video file.
+
+    Args:
+        p (Processing): Namespace containing output path details.
+        imgs (list): List of video paths.
+        batch_size (int, optional): Number of clips to process in a batch. Defaults to 1.
+        rows (int, optional): Number of rows in the grid. If None, it is calculated based on other parameters.
+            Defaults to None.
+
+    Returns:
+        str: Path to the generated video grid file.
+    """
+    print(f"XYZ video_grid(): entered")
+
+    rows, cols = xy_dimensions(imgs, batch_size=batch_size, rows=rows)
+    print(f"XYZ video_grid(): rows={rows}, cols={cols}")
+
+    print(f"XYZ: loading clips")
+    clips = [VideoFileClip(path) for path in imgs]
+
+    print(f"XYZ: appending rows")
+    grid = []
+    for row in range(rows):
+        row_clips = clips[row*cols:(row+1)*cols]
+        grid.append(row_clips)
+    
+    print(f"XYZ: building output filename")
+    basename = "xyz_grid"
+    date = datetime.now().strftime('%Y-%m-%d')
+    output_dir = f"{p.outpath_grids}/{date}"
+    os.makedirs(output_dir, exist_ok=True)
+    seq = images.get_next_sequence_number(output_dir, basename)
+    output_filename = f"{output_dir}/{basename}-{seq:05}.mp4"
+    
+    print("XYZ: grid={grid}")
+    # grid = clips_array(grid)
+    with clips_array(grid) as output_grid:
+        print(f"Saving XYZ video grid to {output_filename}")
+        # TODO increase MP4 bitrate
+        output_grid.write_videofile(output_filename, logger=None, codec="libx264")
+    
+    print(f"XYZ video_grid(): returning {output_filename}")
+    return output_filename
 
 def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend, include_lone_images, include_sub_grids, first_axes_processed, second_axes_processed, margin_size):
+    """Draw a grid of images based on the provided parameters.
+
+    Args:
+        p (modules.processing.Processing): The parameter object containing various settings and configurations.
+        xs (list): setting values to apply on the x axis
+        ys (list): setting values to apply on the y axis
+        zs (list): setting values to apply on the z axis
+        x_labels (list): labels for the x-axis.
+        y_labels (list): labels for the y-axis.
+        z_labels (list): labels for the z-axis.
+        cell (function): The function to process individual cells within the grid.
+        draw_legend (bool): Whether to draw legends or annotations on the grid.
+        include_lone_images (bool): Whether to include lone images.
+        include_sub_grids (bool): Whether to include sub-grids.
+        first_axes_processed (str): The axis processed first ('x', 'y', or 'z').
+        second_axes_processed (str): The axis processed second ('x', 'y', or 'z').
+        margin_size (int): The size of the margin.
+
+    Returns:
+        modules.processing.Processed: result object containing images, prompts, seeds, and infotexts.
+    """
     hor_texts = [[images.GridAnnotation(x)] for x in x_labels]
     ver_texts = [[images.GridAnnotation(y)] for y in y_labels]
     title_texts = [[images.GridAnnotation(z)] for z in z_labels]
@@ -284,6 +330,24 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
     state.job_count = list_size * p.n_iter
 
     def process_cell(x, y, z, ix, iy, iz):
+        """Process a cell in the XYZ grid and update the processed result.
+
+        Args:
+            x (str): setting value for the X axis
+            y (str): setting value for the Y axis
+            z (str): setting value for the Z axis
+            ix (int): The index of the cell along the x-axis.
+            iy (int): The index of the cell along the y-axis.
+            iz (int): The index of the cell along the z-axis.
+
+        Returns:
+            None
+
+        Note:
+            This function updates the `processed_result` variable, which should be defined
+            in the outer scope and initialized before calling this function.
+        """
+        print(f"XYZ draw_xygrid() process_cell()")
         nonlocal processed_result
 
         def index(ix, iy, iz):
@@ -358,23 +422,41 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
         return Processed(p, [])
 
     z_count = len(zs)
+    z_grid = []
 
+    # Make the the XY subgrids
     for i in range(z_count):
         start_index = (i * len(xs) * len(ys)) + i
         end_index = start_index + len(xs) * len(ys)
-        grid = images.image_grid(processed_result.images[start_index:end_index], rows=len(ys))
-        if draw_legend:
-            grid = images.draw_grid_annotations(grid, processed_result.images[start_index].size[0], processed_result.images[start_index].size[1], hor_texts, ver_texts, margin_size)
+        grid_images = processed_result.images[start_index:end_index]
+        rows, cols = xy_dimensions(grid_images, rows=len(ys))
+
+        grid = video_grid(p, grid_images, rows=len(ys))
+
+        # TODO draw annotations on top of videos
+        # if draw_legend:
+        #     grid = images.draw_grid_annotations(grid, processed_result.images[start_index].size[0], processed_result.images[start_index].size[1], hor_texts, ver_texts, margin_size)
+
+        xy_filenames = [
+            processed_result.images[i:i+cols]
+            for i in range(0, len(processed_result.images[start_index:end_index]), cols)]
+        z_grid.append(xy_filenames)
+
         processed_result.images.insert(i, grid)
         processed_result.all_prompts.insert(i, processed_result.all_prompts[start_index])
         processed_result.all_seeds.insert(i, processed_result.all_seeds[start_index])
         processed_result.infotexts.insert(i, processed_result.infotexts[start_index])
 
-    sub_grid_size = processed_result.images[0].size
-    z_grid = images.image_grid(processed_result.images[:z_count], rows=1)
-    if draw_legend:
-        z_grid = images.draw_grid_annotations(z_grid, sub_grid_size[0], sub_grid_size[1], title_texts, [[images.GridAnnotation()]])
+    print(f"XYZ: z_grid={z_grid}")
+    z_grid = video_grid(p, processed_result.images[:z_count], rows=1)
+
+    # TODO draw annotations on top of videos
+    # see images.draw_grid_annotations for details
+    # if draw_legend:
+    #     z_grid = images.draw_grid_annotations(z_grid, sub_grid_size[0], sub_grid_size[1], title_texts, [[images.GridAnnotation()]])
+
     processed_result.images.insert(0, z_grid)
+
     # TODO: Deeper aspects of the program rely on grid info being misaligned between metadata arrays, which is not ideal.
     # processed_result.all_prompts.insert(0, processed_result.all_prompts[0])
     # processed_result.all_seeds.insert(0, processed_result.all_seeds[0])
@@ -404,13 +486,30 @@ re_range_float = re.compile(r"\s*([+-]?\s*\d+(?:.\d*)?)\s*-\s*([+-]?\s*\d+(?:.\d
 re_range_count = re.compile(r"\s*([+-]?\s*\d+)\s*-\s*([+-]?\s*\d+)(?:\s*\[(\d+)\s*])?\s*")
 re_range_count_float = re.compile(r"\s*([+-]?\s*\d+(?:.\d*)?)\s*-\s*([+-]?\s*\d+(?:.\d*)?)(?:\s*\[(\d+(?:.\d*)?)\s*])?\s*")
 
+def find_xyz_module():
+    for data in scripts.scripts_data:
+        if data.script_class.__module__ in {"xyz_grid.py", "xy_grid.py"} and hasattr(data, "module"):
+            return data.module
+
+    return None
 
 class Script(scripts.Script):
     def title(self):
-        return "X/Y/Z plot"
+        return "X/Y/Z video plot"
 
     def ui(self, is_img2img):
-        self.current_axis_options = [x for x in axis_options if type(x) == AxisOption or x.is_img2img == is_img2img]
+        xyz_module = find_xyz_module()
+        if xyz_module is None:
+            print("XYZ module not found.")
+            return
+        axis_options = xyz_module.axis_options
+        self.current_axis_options = []
+        for option in axis_options:
+            if type(option) == AxisOption:
+                self.current_axis_options.append(option)
+            # TODO test with img2img
+            elif is_img2img == getattr(option, 'is_img2img', False):
+                self.current_axis_options.append(option)
 
         with gr.Row():
             with gr.Column(scale=19):
@@ -531,6 +630,17 @@ class Script(scripts.Script):
             p.batch_size = 1
 
         def process_axis(opt, vals, vals_dropdown):
+            """Process the axis values based on the provided options.
+
+            Args:
+                opt (Option): Option object for the axis
+                vals (str or list): Values for the Option
+                vals_dropdown (list): Dropdown values, applicable if the option
+                    specifies choices and is not in CSV mode.
+
+            Returns:
+                list: A list of values to apply to each cell on the axis
+            """
             if opt.label == 'Nothing':
                 return [0]
 
@@ -594,6 +704,7 @@ class Script(scripts.Script):
 
             return valslist
 
+        # prepare values for each axis
         x_opt = self.current_axis_options[x_type]
         if x_opt.choices is not None and not csv_mode:
             x_values = list_to_csv_string(x_values_dropdown)
@@ -685,6 +796,20 @@ class Script(scripts.Script):
         grid_infotext = [None] * (1 + len(zs))
 
         def cell(x, y, z, ix, iy, iz):
+            """Generate the output for a single cell in the XYZ grid.
+
+            Args:
+                x: setting value for X axis
+                y: setting value for Y axis
+                z: setting value for Z axis
+                ix: zero-based index of the cell for X axis
+                iy: zero-based index of the cell for Y axis
+                iz: zero-based index of the cell for Z axis
+
+            Returns:
+                res (modules.processing.Processed): the result for the cell.
+                    AnimateDiff puts pathnames to video files in res.images
+            """
             if shared.state.interrupted:
                 return Processed(p, [], p.seed, "")
 
@@ -766,13 +891,13 @@ class Script(scripts.Script):
             # Don't need sub-images anymore, drop from list:
             processed.images = processed.images[:z_count+1]
 
-        if opts.grid_save:
-            # Auto-save main and sub-grids:
-            grid_count = z_count + 1 if z_count > 1 else 1
-            for g in range(grid_count):
-                # TODO: See previous comment about intentional data misalignment.
-                adj_g = g-1 if g > 0 else g
-                images.save_image(processed.images[g], p.outpath_grids, "xyz_grid", info=processed.infotexts[g], extension=opts.grid_format, prompt=processed.all_prompts[adj_g], seed=processed.all_seeds[adj_g], grid=True, p=processed)
+        # if opts.grid_save:
+        #     # Auto-save main and sub-grids:
+        #     grid_count = z_count + 1 if z_count > 1 else 1
+        #     for g in range(grid_count):
+        #         # TODO: See previous comment about intentional data misalignment.
+        #         adj_g = g-1 if g > 0 else g
+        #         images.save_image(processed.images[g], p.outpath_grids, "xyz_grid", info=processed.infotexts[g], extension=opts.grid_format, prompt=processed.all_prompts[adj_g], seed=processed.all_seeds[adj_g], grid=True, p=processed)
 
         if not include_sub_grids:
             # Done with sub-grids, drop all related information:
