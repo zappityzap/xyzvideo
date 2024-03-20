@@ -288,11 +288,9 @@ def video_grid(p, imgs, batch_size=1, rows=None):
     output_filename = f"{output_dir}/{basename}-{seq:05}.mp4"
     
     print("XYZ: grid={grid}")
-    # grid = clips_array(grid)
     with clips_array(grid) as output_grid:
         print(f"Saving XYZ video grid to {output_filename}")
-        # TODO increase MP4 bitrate
-        output_grid.write_videofile(output_filename, logger=None, codec="libx264")
+        output_grid.write_videofile(output_filename, logger=None, codec="libx264", bitrate="10000000")
     
     print(f"XYZ video_grid(): returning {output_filename}")
     return output_filename
