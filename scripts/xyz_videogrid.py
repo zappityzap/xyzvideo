@@ -9,7 +9,7 @@ import os.path
 from io import StringIO
 from PIL import Image
 import numpy as np
-from moviepy.editor import VideoFileClip, clips_array, TextClip
+from moviepy.editor import VideoFileClip, clips_array, TextClip, CompositeVideoClip
 
 import modules.scripts as scripts
 from scripts import xyz_grid
@@ -251,13 +251,14 @@ def xy_dimensions(imgs, batch_size=1, rows=None):
     cols = math.ceil(len(imgs) / rows)
     return (rows, cols)
 
-def video_grid(p, imgs, batch_size=1, rows=None):
+def video_grid(p, imgs, annotations=None, batch_size=1, rows=None):
     """
     Creates a grid of video clips from a list of image paths and saves it as a video file.
 
     Args:
         p (Processing): Namespace containing output path details.
         imgs (list): List of video paths.
+        annotations (list): List of strings to overlay, one per video.
         batch_size (int, optional): Number of clips to process in a batch. Defaults to 1.
         rows (int, optional): Number of rows in the grid. If None, it is calculated based on other parameters.
             Defaults to None.
@@ -277,8 +278,29 @@ def video_grid(p, imgs, batch_size=1, rows=None):
     grid = []
     for row in range(rows):
         row_clips = clips[row*cols:(row+1)*cols]
+        if annotations:
+            print(f"XYZ: annotations present, creating text clips")
+
+            row_annotations = [
+                TextClip(
+                    text,
+                    font="Courier",
+                    fontsize=36,
+                    color="white",
+                    bg_color="black",
+                    ).set_duration(clip.duration)
+                for text, clip
+                in zip(annotations[row * cols:(row + 1) * cols], row_clips)]
+            print(f"XYZ: row_annotations={row_annotations}")
+            row_clips = [
+                CompositeVideoClip([clip, annotation])
+                for clip, annotation
+                in zip(row_clips, row_annotations)]
         grid.append(row_clips)
-    
+
+
+
+
     print(f"XYZ: building output filename")
     basename = "xyz_grid"
     date = datetime.now().strftime('%Y-%m-%d')
@@ -287,13 +309,14 @@ def video_grid(p, imgs, batch_size=1, rows=None):
     seq = images.get_next_sequence_number(output_dir, basename)
     output_filename = f"{output_dir}/{basename}-{seq:05}.mp4"
     
-    print("XYZ: grid={grid}")
+    print(f"XYZ: grid={grid}")
     with clips_array(grid) as output_grid:
         print(f"Saving XYZ video grid to {output_filename}")
         output_grid.write_videofile(output_filename, logger=None, codec="libx264", bitrate="10000000")
     
     print(f"XYZ video_grid(): returning {output_filename}")
     return output_filename
+
 
 def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend, include_lone_images, include_sub_grids, first_axes_processed, second_axes_processed, margin_size):
     """Draw a grid of images based on the provided parameters.
@@ -380,36 +403,44 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
                 cell_size = processed_result.images[0].size
             processed_result.images[idx] = Image.new(cell_mode, cell_size)
 
+    # Generate cells and annotations
+    annotations = []
     if first_axes_processed == 'x':
         for ix, x in enumerate(xs):
             if second_axes_processed == 'y':
                 for iy, y in enumerate(ys):
                     for iz, z in enumerate(zs):
                         process_cell(x, y, z, ix, iy, iz)
+                        annotations.append(f"{xs[ix]},{ys[iy]}")
             else:
                 for iz, z in enumerate(zs):
                     for iy, y in enumerate(ys):
                         process_cell(x, y, z, ix, iy, iz)
+                        annotations.append(f"{xs[ix]},{ys[iy]}")
     elif first_axes_processed == 'y':
         for iy, y in enumerate(ys):
             if second_axes_processed == 'x':
                 for ix, x in enumerate(xs):
                     for iz, z in enumerate(zs):
                         process_cell(x, y, z, ix, iy, iz)
+                        annotations.append(f"{xs[ix]},{ys[iy]}")
             else:
                 for iz, z in enumerate(zs):
                     for ix, x in enumerate(xs):
                         process_cell(x, y, z, ix, iy, iz)
+                        annotations.append(f"{xs[ix]},{ys[iy]}")
     elif first_axes_processed == 'z':
         for iz, z in enumerate(zs):
             if second_axes_processed == 'x':
                 for ix, x in enumerate(xs):
                     for iy, y in enumerate(ys):
                         process_cell(x, y, z, ix, iy, iz)
+                        annotations.append(f"{xs[ix]},{ys[iy]}")
             else:
                 for iy, y in enumerate(ys):
                     for ix, x in enumerate(xs):
                         process_cell(x, y, z, ix, iy, iz)
+                        annotations.append(f"{xs[ix]},{ys[iy]}")
 
     if not processed_result:
         # Should never happen, I've only seen it on one of four open tabs and it needed to refresh.
@@ -428,8 +459,10 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
         end_index = start_index + len(xs) * len(ys)
         grid_images = processed_result.images[start_index:end_index]
         rows, cols = xy_dimensions(grid_images, rows=len(ys))
-
-        grid = video_grid(p, grid_images, rows=len(ys))
+        grid_annotations = annotations[start_index:end_index]
+        print(f"XYZ: annotations={annotations}")
+        print(f"XYZ: grid_annotations={grid_annotations}")
+        grid = video_grid(p, grid_images, grid_annotations, rows=len(ys))
 
         # TODO draw annotations on top of videos
         # if draw_legend:
