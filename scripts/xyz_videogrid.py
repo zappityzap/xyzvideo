@@ -9,7 +9,7 @@ import os.path
 from io import StringIO
 from PIL import Image
 import numpy as np
-from moviepy.editor import VideoFileClip, clips_array, TextClip, CompositeVideoClip
+from moviepy.editor import VideoFileClip, clips_array, TextClip, CompositeVideoClip, ColorClip
 
 import modules.scripts as scripts
 from scripts import xyz_grid
@@ -281,16 +281,24 @@ def video_grid(p, imgs, annotations=None, batch_size=1, rows=None):
         if annotations:
             print(f"XYZ: annotations present, creating text clips")
 
-            row_annotations = [
-                TextClip(
+            row_annotations = []
+            for text, clip in zip(annotations[row * cols:(row + 1) * cols], row_clips):
+                text_clip = TextClip(
                     text,
-                    font="Courier",
-                    fontsize=36,
+                    font="sans",
+                    fontsize=24,
+                    size=(clip.size[0], 0),
                     color="white",
-                    bg_color="black",
+                    method="caption",
+                    align="center",
                     ).set_duration(clip.duration)
-                for text, clip
-                in zip(annotations[row * cols:(row + 1) * cols], row_clips)]
+                color_clip = ColorClip(
+                    size=(text_clip.size[0] + 2, text_clip.size[1] + 2),
+                    color=(0, 0, 0)).set_duration(clip.duration)
+                color_clip = color_clip.set_opacity(.3)
+                text_clip = text_clip.set_position('center')
+                row_annotations.append(CompositeVideoClip([color_clip, text_clip]))
+
             print(f"XYZ: row_annotations={row_annotations}")
             row_clips = [
                 CompositeVideoClip([clip, annotation])
@@ -411,36 +419,36 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
                 for iy, y in enumerate(ys):
                     for iz, z in enumerate(zs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]},{ys[iy]}")
+                        annotations.append(f"{xs[ix]}, {ys[iy]}")
             else:
                 for iz, z in enumerate(zs):
                     for iy, y in enumerate(ys):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]},{ys[iy]}")
+                        annotations.append(f"{xs[ix]}, {ys[iy]}")
     elif first_axes_processed == 'y':
         for iy, y in enumerate(ys):
             if second_axes_processed == 'x':
                 for ix, x in enumerate(xs):
                     for iz, z in enumerate(zs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]},{ys[iy]}")
+                        annotations.append(f"{xs[ix]}, {ys[iy]}")
             else:
                 for iz, z in enumerate(zs):
                     for ix, x in enumerate(xs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]},{ys[iy]}")
+                        annotations.append(f"{xs[ix]}, {ys[iy]}")
     elif first_axes_processed == 'z':
         for iz, z in enumerate(zs):
             if second_axes_processed == 'x':
                 for ix, x in enumerate(xs):
                     for iy, y in enumerate(ys):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]},{ys[iy]}")
+                        annotations.append(f"{xs[ix]}, {ys[iy]}")
             else:
                 for iy, y in enumerate(ys):
                     for ix, x in enumerate(xs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]},{ys[iy]}")
+                        annotations.append(f"{xs[ix]}, {ys[iy]}")
 
     if not processed_result:
         # Should never happen, I've only seen it on one of four open tabs and it needed to refresh.
