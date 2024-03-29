@@ -277,12 +277,19 @@ def video_grid(p, imgs, annotations=None, batch_size=1, rows=None):
     print(f"XYZ: appending rows")
     grid = []
     for row in range(rows):
-        row_clips = clips[row*cols:(row+1)*cols]
+        print(f"XYZ: row={row}")
+
+        row_start = row*cols
+        row_end = (row+1)*cols
+        print(f"XYZ: row_start={row_start}, row_end={row_end}")
+
+        row_clips = clips[row_start:row_end]
+        print(f"XYZ: len(row_clips)={len(row_clips)}")
+
         if annotations:
             print(f"XYZ: annotations present, creating text clips")
-
             row_annotations = []
-            for text, clip in zip(annotations[row * cols:(row + 1) * cols], row_clips):
+            for text, clip in zip(annotations[row_start:row_end], row_clips):
                 text_clip = TextClip(
                     text,
                     font="sans",
@@ -305,8 +312,6 @@ def video_grid(p, imgs, annotations=None, batch_size=1, rows=None):
                 for clip, annotation
                 in zip(row_clips, row_annotations)]
         grid.append(row_clips)
-
-
 
 
     print(f"XYZ: building output filename")
@@ -412,6 +417,9 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
             processed_result.images[idx] = Image.new(cell_mode, cell_size)
 
     # Generate cells and annotations
+    def make_annotation(ix, iy, iz, xs, ys, zs):
+        return f"{xs[ix]}, {ys[iy]}" + (f", {zs[iz]}" if len(zs) > 1 else "")
+    
     annotations = []
     if first_axes_processed == 'x':
         for ix, x in enumerate(xs):
@@ -419,36 +427,36 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
                 for iy, y in enumerate(ys):
                     for iz, z in enumerate(zs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]}, {ys[iy]}")
+                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
             else:
                 for iz, z in enumerate(zs):
                     for iy, y in enumerate(ys):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]}, {ys[iy]}")
+                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
     elif first_axes_processed == 'y':
         for iy, y in enumerate(ys):
             if second_axes_processed == 'x':
                 for ix, x in enumerate(xs):
                     for iz, z in enumerate(zs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]}, {ys[iy]}")
+                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
             else:
                 for iz, z in enumerate(zs):
                     for ix, x in enumerate(xs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]}, {ys[iy]}")
+                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
     elif first_axes_processed == 'z':
         for iz, z in enumerate(zs):
             if second_axes_processed == 'x':
                 for ix, x in enumerate(xs):
                     for iy, y in enumerate(ys):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]}, {ys[iy]}")
+                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
             else:
                 for iy, y in enumerate(ys):
                     for ix, x in enumerate(xs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(f"{xs[ix]}, {ys[iy]}")
+                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
 
     if not processed_result:
         # Should never happen, I've only seen it on one of four open tabs and it needed to refresh.
@@ -463,8 +471,9 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
 
     # Make the the XY subgrids
     for i in range(z_count):
-        start_index = (i * len(xs) * len(ys)) + i
+        start_index = i * len(xs) * len(ys)
         end_index = start_index + len(xs) * len(ys)
+        print(f"XYZ: draw_xyz_grid(): i={i}, start_index={start_index}, end_index={end_index}")
         grid_images = processed_result.images[start_index:end_index]
         rows, cols = xy_dimensions(grid_images, rows=len(ys))
         grid_annotations = annotations[start_index:end_index]
