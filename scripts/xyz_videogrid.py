@@ -476,14 +476,10 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
         print(f"XYZ: draw_xyz_grid(): i={i}, start_index={start_index}, end_index={end_index}")
         grid_images = processed_result.images[start_index:end_index]
         rows, cols = xy_dimensions(grid_images, rows=len(ys))
-        grid_annotations = annotations[start_index:end_index]
+        grid_annotations = annotations[start_index:end_index] if draw_legend else None
         print(f"XYZ: annotations={annotations}")
         print(f"XYZ: grid_annotations={grid_annotations}")
         grid = video_grid(p, grid_images, grid_annotations, rows=len(ys))
-
-        # TODO draw annotations on top of videos
-        # if draw_legend:
-        #     grid = images.draw_grid_annotations(grid, processed_result.images[start_index].size[0], processed_result.images[start_index].size[1], hor_texts, ver_texts, margin_size)
 
         xy_filenames = [
             processed_result.images[i:i+cols]
@@ -498,10 +494,6 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
     print(f"XYZ: z_grid={z_grid}")
     z_grid = video_grid(p, processed_result.images[:z_count], rows=1)
 
-    # TODO draw annotations on top of videos
-    # see images.draw_grid_annotations for details
-    # if draw_legend:
-    #     z_grid = images.draw_grid_annotations(z_grid, sub_grid_size[0], sub_grid_size[1], title_texts, [[images.GridAnnotation()]])
 
     processed_result.images.insert(0, z_grid)
 
