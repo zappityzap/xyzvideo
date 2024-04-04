@@ -251,14 +251,14 @@ def xy_dimensions(imgs, batch_size=1, rows=None):
     cols = math.ceil(len(imgs) / rows)
     return (rows, cols)
 
-def video_grid(p, imgs, annotations=None, batch_size=1, rows=None):
+def video_grid(p, imgs, captions=None, batch_size=1, rows=None):
     """
     Creates a grid of video clips from a list of image paths and saves it as a video file.
 
     Args:
         p (Processing): Namespace containing output path details.
         imgs (list): List of video paths.
-        annotations (list): List of strings to overlay, one per video.
+        captions (list): List of strings to overlay, one per video.
         batch_size (int, optional): Number of clips to process in a batch. Defaults to 1.
         rows (int, optional): Number of rows in the grid. If None, it is calculated based on other parameters.
             Defaults to None.
@@ -286,10 +286,10 @@ def video_grid(p, imgs, annotations=None, batch_size=1, rows=None):
         row_clips = clips[row_start:row_end]
         print(f"XYZ: len(row_clips)={len(row_clips)}")
 
-        if annotations:
-            print(f"XYZ: annotations present, creating text clips")
-            row_annotations = []
-            for text, clip in zip(annotations[row_start:row_end], row_clips):
+        if captions:
+            print(f"XYZ: captions present, creating text clips")
+            row_captions = []
+            for text, clip in zip(captions[row_start:row_end], row_clips):
                 text_clip = TextClip(
                     txt=text,
                     font="sans",
@@ -305,13 +305,13 @@ def video_grid(p, imgs, annotations=None, batch_size=1, rows=None):
                     color=(0, 0, 0)).set_duration(clip.duration)
                 color_clip = color_clip.set_opacity(.3)
                 text_clip = text_clip.set_position('center')
-                row_annotations.append(CompositeVideoClip([color_clip, text_clip]))
+                row_captions.append(CompositeVideoClip([color_clip, text_clip]))
 
-            print(f"XYZ: row_annotations={row_annotations}")
+            print(f"XYZ: row_captions={row_captions}")
             row_clips = [
-                CompositeVideoClip([clip, annotation])
-                for clip, annotation
-                in zip(row_clips, row_annotations)]
+                CompositeVideoClip([clip, caption])
+                for clip, caption
+                in zip(row_clips, row_captions)]
         grid.append(row_clips)
 
 
@@ -344,7 +344,7 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
         y_labels (list): labels for the y-axis.
         z_labels (list): labels for the z-axis.
         cell (function): The function to process individual cells within the grid.
-        draw_legend (bool): Whether to draw legends or annotations on the grid.
+        draw_legend (bool): Whether to draw legends or captions on the grid.
         include_lone_images (bool): Whether to include lone images.
         include_sub_grids (bool): Whether to include sub-grids.
         first_axes_processed (str): The axis processed first ('x', 'y', or 'z').
@@ -417,47 +417,47 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
                 cell_size = processed_result.images[0].size
             processed_result.images[idx] = Image.new(cell_mode, cell_size)
 
-    # Generate cells and annotations
-    def make_annotation(ix, iy, iz, xs, ys, zs):
+    # Generate cells and captions
+    def make_caption(ix, iy, iz, xs, ys, zs):
         return f"{xs[ix]}, {ys[iy]}" + (f", {zs[iz]}" if len(zs) > 1 else "")
     
-    annotations = []
+    captions = []
     if first_axes_processed == 'x':
         for ix, x in enumerate(xs):
             if second_axes_processed == 'y':
                 for iy, y in enumerate(ys):
                     for iz, z in enumerate(zs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
+                        captions.append(make_caption(ix, iy, iz, xs, ys, zs))
             else:
                 for iz, z in enumerate(zs):
                     for iy, y in enumerate(ys):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
+                        captions.append(make_caption(ix, iy, iz, xs, ys, zs))
     elif first_axes_processed == 'y':
         for iy, y in enumerate(ys):
             if second_axes_processed == 'x':
                 for ix, x in enumerate(xs):
                     for iz, z in enumerate(zs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
+                        captions.append(make_caption(ix, iy, iz, xs, ys, zs))
             else:
                 for iz, z in enumerate(zs):
                     for ix, x in enumerate(xs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
+                        captions.append(make_caption(ix, iy, iz, xs, ys, zs))
     elif first_axes_processed == 'z':
         for iz, z in enumerate(zs):
             if second_axes_processed == 'x':
                 for ix, x in enumerate(xs):
                     for iy, y in enumerate(ys):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
+                        captions.append(make_caption(ix, iy, iz, xs, ys, zs))
             else:
                 for iy, y in enumerate(ys):
                     for ix, x in enumerate(xs):
                         process_cell(x, y, z, ix, iy, iz)
-                        annotations.append(make_annotation(ix, iy, iz, xs, ys, zs))
+                        captions.append(make_caption(ix, iy, iz, xs, ys, zs))
 
     if not processed_result:
         # Should never happen, I've only seen it on one of four open tabs and it needed to refresh.
@@ -477,10 +477,10 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
         print(f"XYZ: draw_xyz_grid(): i={i}, start_index={start_index}, end_index={end_index}")
         grid_images = processed_result.images[start_index:end_index]
         rows, cols = xy_dimensions(grid_images, rows=len(ys))
-        grid_annotations = annotations[start_index:end_index] if draw_legend else None
-        print(f"XYZ: annotations={annotations}")
-        print(f"XYZ: grid_annotations={grid_annotations}")
-        grid = video_grid(p, grid_images, grid_annotations, rows=len(ys))
+        grid_captions = captions[start_index:end_index] if draw_legend else None
+        print(f"XYZ: captions={captions}")
+        print(f"XYZ: grid_captions={grid_captions}")
+        grid = video_grid(p, grid_images, grid_captions, rows=len(ys))
 
         xy_filenames = [
             processed_result.images[i:i+cols]
