@@ -332,7 +332,7 @@ def video_grid(p, imgs, captions=None, batch_size=1, rows=None):
     return output_filename
 
 
-def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend, include_lone_images, include_sub_grids, first_axes_processed, second_axes_processed, margin_size):
+def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_caption, include_lone_images, include_sub_grids, first_axes_processed, second_axes_processed, margin_size):
     """Draw a grid of images based on the provided parameters.
 
     Args:
@@ -344,7 +344,7 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
         y_labels (list): labels for the y-axis.
         z_labels (list): labels for the z-axis.
         cell (function): The function to process individual cells within the grid.
-        draw_legend (bool): Whether to draw legends or captions on the grid.
+        draw_caption (bool): Whether to draw captions or captions on the grid.
         include_lone_images (bool): Whether to include lone images.
         include_sub_grids (bool): Whether to include sub-grids.
         first_axes_processed (str): The axis processed first ('x', 'y', or 'z').
@@ -477,7 +477,7 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_legend
         print(f"XYZ: draw_xyz_grid(): i={i}, start_index={start_index}, end_index={end_index}")
         grid_images = processed_result.images[start_index:end_index]
         rows, cols = xy_dimensions(grid_images, rows=len(ys))
-        grid_captions = captions[start_index:end_index] if draw_legend else None
+        grid_captions = captions[start_index:end_index] if draw_caption else None
         print(f"XYZ: captions={captions}")
         print(f"XYZ: grid_captions={grid_captions}")
         grid = video_grid(p, grid_images, grid_captions, rows=len(ys))
@@ -574,7 +574,7 @@ class Script(scripts.Script):
 
         with gr.Row(variant="compact", elem_id="axis_options"):
             with gr.Column():
-                draw_legend = gr.Checkbox(label='Draw legend', value=True, elem_id=self.elem_id("draw_legend"))
+                draw_caption = gr.Checkbox(label='Draw caption', value=True, elem_id=self.elem_id("draw_caption"))
                 no_fixed_seeds = gr.Checkbox(label='Keep -1 for seeds', value=False, elem_id=self.elem_id("no_fixed_seeds"))
             with gr.Column():
                 include_lone_images = gr.Checkbox(label='Include Sub Videos', value=False, elem_id=self.elem_id("include_lone_videos"))
@@ -661,9 +661,9 @@ class Script(scripts.Script):
             (z_values_dropdown, lambda params: get_dropdown_update_from_params("Z", params)),
         )
 
-        return [x_type, x_values, x_values_dropdown, y_type, y_values, y_values_dropdown, z_type, z_values, z_values_dropdown, draw_legend, include_lone_images, include_sub_grids, no_fixed_seeds, margin_size, csv_mode]
+        return [x_type, x_values, x_values_dropdown, y_type, y_values, y_values_dropdown, z_type, z_values, z_values_dropdown, draw_caption, include_lone_images, include_sub_grids, no_fixed_seeds, margin_size, csv_mode]
 
-    def run(self, p, x_type, x_values, x_values_dropdown, y_type, y_values, y_values_dropdown, z_type, z_values, z_values_dropdown, draw_legend, include_lone_images, include_sub_grids, no_fixed_seeds, margin_size, csv_mode):
+    def run(self, p, x_type, x_values, x_values_dropdown, y_type, y_values, y_values_dropdown, z_type, z_values, z_values_dropdown, draw_caption, include_lone_images, include_sub_grids, no_fixed_seeds, margin_size, csv_mode):
         if not no_fixed_seeds:
             modules.processing.fix_seed(p)
 
@@ -911,7 +911,7 @@ class Script(scripts.Script):
                 y_labels=[y_opt.format_value(p, y_opt, y) for y in ys],
                 z_labels=[z_opt.format_value(p, z_opt, z) for z in zs],
                 cell=cell,
-                draw_legend=draw_legend,
+                draw_caption=draw_caption,
                 include_lone_images=include_lone_images,
                 include_sub_grids=include_sub_grids,
                 first_axes_processed=first_axes_processed,
