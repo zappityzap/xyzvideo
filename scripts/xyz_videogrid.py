@@ -291,13 +291,14 @@ def video_grid(p, imgs, annotations=None, batch_size=1, rows=None):
             row_annotations = []
             for text, clip in zip(annotations[row_start:row_end], row_clips):
                 text_clip = TextClip(
-                    text,
+                    txt=text,
                     font="sans",
                     fontsize=24,
                     size=(clip.size[0], 0),
                     color="white",
                     method="caption",
                     align="center",
+                    print_cmd=True,
                     ).set_duration(clip.duration)
                 color_clip = ColorClip(
                     size=(text_clip.size[0] + 2, text_clip.size[1] + 2),
