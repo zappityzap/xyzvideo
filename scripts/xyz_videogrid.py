@@ -580,7 +580,7 @@ class Script(scripts.Script):
                 include_lone_images = gr.Checkbox(label='Include Sub Videos', value=False, elem_id=self.elem_id("include_lone_videos"))
                 include_sub_grids = gr.Checkbox(label='Include Sub Grids', value=False, elem_id=self.elem_id("include_sub_grids"))
             with gr.Column():
-                margin_size = gr.Slider(label="Grid margins (px)", minimum=0, maximum=500, value=0, step=2, elem_id=self.elem_id("margin_size"))
+                margin_size = gr.Slider(label="Grid margins (px)", visible=False, minimum=0, maximum=500, value=0, step=2, elem_id=self.elem_id("margin_size"))
             with gr.Column():
                 csv_mode = gr.Checkbox(label='Use text inputs instead of dropdowns', value=False, elem_id=self.elem_id("csv_mode"))
 
