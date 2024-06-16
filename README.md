@@ -21,9 +21,6 @@ Install like any other extension. Note that captions may require modifying the I
 
 ## UI Compatibility
 * Automatic1111: Yes, v1.7.0+
-* Forge: Yes
-* Other forks: unknown
-* ComfyUI: No
 
 ## Extension Compatibility
 * [sd-webui-animatediff](https://github.com/continue-revolution/sd-webui-animatediff): Yes
@@ -61,12 +58,12 @@ Install like any other extension. Note that captions may require modifying the I
 </details>
 
 ## Version History
-* [v0.0.1](https://github.com/zappityzap/cyzvideo/releases/tag/v0.0.1) - First public version
+* [v0.0.1](https://github.com/zappityzap/cyzvideo/releases/tag/v0.0.1) - First release
 
 # Usage
 1. Enable AnimateDiff
 1. Select MP4 output format in AnimateDiff
-1. Select the **X/Y/Z video plot** script from the Scripts dropdown list
+1. Select **X/Y/Z video plot** script from the Scripts dropdown list
 1. Set X/Y/Z parameters
 1. Generate
 
