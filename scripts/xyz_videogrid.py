@@ -492,11 +492,10 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_captio
         processed_result.all_seeds.insert(i, processed_result.all_seeds[start_index])
         processed_result.infotexts.insert(i, processed_result.infotexts[start_index])
 
-    print(f"XYZ: z_grid={z_grid}")
-    z_grid = video_grid(p, processed_result.images[:z_count], rows=1)
-
-
-    processed_result.images.insert(0, z_grid)
+    if len(zs) > 1:
+        print(f"XYZ: z_grid={z_grid}")
+        z_grid = video_grid(p, processed_result.images[:z_count], rows=1)
+        processed_result.images.insert(0, z_grid)
 
     # TODO: Deeper aspects of the program rely on grid info being misaligned between metadata arrays, which is not ideal.
     # processed_result.all_prompts.insert(0, processed_result.all_prompts[0])
