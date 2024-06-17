@@ -369,7 +369,6 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_captio
             This function updates the `processed_result` variable, which should be defined
             in the outer scope and initialized before calling this function.
         """
-        print(f"XYZ draw_xygrid() process_cell()")
         nonlocal processed_result
 
         def index(ix, iy, iz):
