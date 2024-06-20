@@ -10,6 +10,8 @@ Designed to work with [sd-webui-animatediff](https://github.com/continue-revolut
 
 # Examples
 Steps (10, 30, 50)
+[![Steps](https://zappityzap.github.io/xyzvideo/assets/videos/xyz_grid-00001.mp4)
+
 [![Steps](https://zappityzap.github.io/xyzvideo/assets/images/001.jpg)](https://zappityzap.github.io/xyzvideo/assets/videos/xyz_grid-00001.mp4)
 
 CFG (5, 7, 10)
