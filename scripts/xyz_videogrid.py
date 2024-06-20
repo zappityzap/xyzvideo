@@ -266,25 +266,16 @@ def video_grid(p, imgs, captions=None, batch_size=1, rows=None):
     Returns:
         str: Path to the generated video grid file.
     """
-    print(f"XYZ video_grid(): entered")
 
     rows, cols = xy_dimensions(imgs, batch_size=batch_size, rows=rows)
-    print(f"XYZ video_grid(): rows={rows}, cols={cols}")
 
-    print(f"XYZ: loading clips")
     clips = [VideoFileClip(path) for path in imgs]
 
-    print(f"XYZ: appending rows")
     grid = []
     for row in range(rows):
-        print(f"XYZ: row={row}")
-
         row_start = row*cols
         row_end = (row+1)*cols
-        print(f"XYZ: row_start={row_start}, row_end={row_end}")
-
         row_clips = clips[row_start:row_end]
-        print(f"XYZ: len(row_clips)={len(row_clips)}")
 
         if captions:
             print(f"XYZ: captions present, creating text clips")
@@ -307,15 +298,12 @@ def video_grid(p, imgs, captions=None, batch_size=1, rows=None):
                 text_clip = text_clip.set_position('center')
                 row_captions.append(CompositeVideoClip([color_clip, text_clip]))
 
-            print(f"XYZ: row_captions={row_captions}")
             row_clips = [
                 CompositeVideoClip([clip, caption])
                 for clip, caption
                 in zip(row_clips, row_captions)]
         grid.append(row_clips)
 
-
-    print(f"XYZ: building output filename")
     basename = "xyz_grid"
     date = datetime.now().strftime('%Y-%m-%d')
     output_dir = f"{p.outpath_grids}/{date}"
@@ -323,7 +311,6 @@ def video_grid(p, imgs, captions=None, batch_size=1, rows=None):
     seq = images.get_next_sequence_number(output_dir, basename)
     output_filename = f"{output_dir}/{basename}-{seq:05}.mp4"
     
-    print(f"XYZ: grid={grid}")
     with clips_array(grid) as output_grid:
         print(f"Saving XYZ video grid to {output_filename}")
         output_grid.write_videofile(output_filename, logger=None, codec="libx264", bitrate="10000000")
@@ -382,7 +369,6 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_captio
             This function updates the `processed_result` variable, which should be defined
             in the outer scope and initialized before calling this function.
         """
-        print(f"XYZ draw_xygrid() process_cell()")
         nonlocal processed_result
 
         def index(ix, iy, iz):
@@ -474,12 +460,9 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_captio
     for i in range(z_count):
         start_index = i * len(xs) * len(ys)
         end_index = start_index + len(xs) * len(ys)
-        print(f"XYZ: draw_xyz_grid(): i={i}, start_index={start_index}, end_index={end_index}")
         grid_images = processed_result.images[start_index:end_index]
         rows, cols = xy_dimensions(grid_images, rows=len(ys))
         grid_captions = captions[start_index:end_index] if draw_caption else None
-        print(f"XYZ: captions={captions}")
-        print(f"XYZ: grid_captions={grid_captions}")
         grid = video_grid(p, grid_images, grid_captions, rows=len(ys))
 
         xy_filenames = [
@@ -492,11 +475,9 @@ def draw_xyz_grid(p, xs, ys, zs, x_labels, y_labels, z_labels, cell, draw_captio
         processed_result.all_seeds.insert(i, processed_result.all_seeds[start_index])
         processed_result.infotexts.insert(i, processed_result.infotexts[start_index])
 
-    print(f"XYZ: z_grid={z_grid}")
-    z_grid = video_grid(p, processed_result.images[:z_count], rows=1)
-
-
-    processed_result.images.insert(0, z_grid)
+    if len(zs) > 1:
+        z_grid = video_grid(p, processed_result.images[:z_count], rows=1)
+        processed_result.images.insert(0, z_grid)
 
     # TODO: Deeper aspects of the program rely on grid info being misaligned between metadata arrays, which is not ideal.
     # processed_result.all_prompts.insert(0, processed_result.all_prompts[0])
